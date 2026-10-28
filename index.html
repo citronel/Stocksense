@@ -651,6 +651,16 @@
         display: none;
       }
 
+      .prototype-note {
+        border: 1px solid #dfe7dc;
+        background: #f5faf6;
+        color: var(--green-900);
+        border-radius: 12px;
+        padding: 10px 12px;
+        font-size: 0.8rem;
+        line-height: 1.5;
+      }
+
       .toast {
         position: fixed;
         left: 50%;
@@ -794,7 +804,7 @@
           </button>
           <button class="nav-btn" type="button" data-view="settings">
             <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
-              <path d="M19.14 12.94c.04-.31.06-.62.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.18l-2.39.96c-.49-.39-1.04-.71-1.64-.95l-.36-2.55A.5.5 0 0 0 13.9 2h-3.8a.5.5 0 0 0-.49.42l-.36 2.55c-.6.24-1.15.56-1.64.95l-2.39-.96a.5.5 0 0 0-.6.18L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.62-.06.94s.02.63.06.94L2.83 14.52a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.18l2.39-.96c.49.39 1.04.71 1.64.95l.36 2.55a.5.5 0 0 0 .49.42h3.8a.5.5 0 0 0 .49-.42l.36-2.55c.6-.24 1.15-.56 1.64-.95l2.39.96a.5.5 0 0 0 .6-.18l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z" />
+              <path d="M19.14 12.94c.04-.31.06-.62.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.18l-2.39.96c-.49-.39-1.04-.71-1.64-.95l-.36-2.55A.5.5 0 0 0 13.9 2.5h-3.8a.5.5 0 0 0-.49.42l-.36 2.55c-.6.24-1.15.56-1.64.95l-2.39-.96a.5.5 0 0 0-.6.18L2.81 10.54a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.62-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.18l2.39-.96c.49.39 1.04.71 1.64.95l.36 2.55a.5.5 0 0 0 .49.42h3.8a.5.5 0 0 0 .49-.42l.36-2.55c.6-.24 1.15-.56 1.64-.95l2.39.96a.5.5 0 0 0 .6-.18l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z" />
             </svg>
             Settings
           </button>
@@ -984,7 +994,7 @@
             <div class="section-header">
               <div>
                 <h2>Settings</h2>
-                <p class="section-subheading">Store details and data preferences.</p>
+                <p class="section-subheading">Store details and prototype data storage.</p>
               </div>
             </div>
 
@@ -1018,14 +1028,12 @@
               </div>
 
               <div class="panel settings-block">
-                <h3>Data management</h3>
-                <div class="settings-actions">
-                  <button class="btn btn-secondary" type="button" id="loadDemoDataBtn">Load sample data</button>
-                  <button class="btn btn-soft" type="button" id="loadEmptyDataBtn">Load empty inventory</button>
-                  <button class="btn btn-soft" type="button" id="resetDemoDataBtn">Reset demo data</button>
-                  <button class="btn btn-secondary" type="button" id="exportCsvBtn">Export CSV</button>
-                  <button class="btn btn-secondary" type="button" id="exportJsonBtn">Export JSON backup</button>
-                  <button class="btn btn-soft" type="button" id="importJsonBtn">Import JSON data</button>
+                <h3>Prototype storage</h3>
+                <div class="prototype-note">
+                  Inventory is saved in this browser only as a prototype. It is not secure cross-device storage and is not a real database or authenticated system.
+                </div>
+                <div class="btn-row" style="margin-top: 12px;">
+                  <button class="btn btn-secondary" type="button" id="resetInventoryBtn">Clear all inventory</button>
                 </div>
               </div>
 
@@ -1033,8 +1041,6 @@
                 <button class="btn btn-primary" type="submit">Save settings</button>
               </div>
             </form>
-
-            <input id="jsonImportInput" class="hidden-file-input" type="file" accept=".json,application/json" />
           </section>
         </main>
       </div>
@@ -1043,1311 +1049,828 @@
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <script>
-      (() => {
-        const STORAGE_KEY = "stocksense_v1";
+      const STORAGE_KEY = 'stocksense_prototype_v1';
 
-        const defaultSettings = {
-          storeName: "StockSense",
-          currency: "NGN",
-          defaultLowStockThreshold: 10,
-          lowStockAlertsEnabled: true
+      const defaultSettings = {
+        storeName: 'StockSense',
+        currency: 'NGN',
+        defaultLowStockThreshold: 10,
+      };
+
+      const state = {
+        settings: { ...defaultSettings },
+        products: [],
+        history: [],
+      };
+
+      const ui = {
+        storeTitleBrand: document.getElementById('storeTitleBrand'),
+        lastSavedText: document.getElementById('lastSavedText'),
+        overviewCards: document.getElementById('overviewCards'),
+        recentMovementsList: document.getElementById('recentMovementsList'),
+        statusSummaryList: document.getElementById('statusSummaryList'),
+        productList: document.getElementById('productList'),
+        productForm: document.getElementById('productForm'),
+        productEditId: document.getElementById('productEditId'),
+        productName: document.getElementById('productName'),
+        productSku: document.getElementById('productSku'),
+        productCategory: document.getElementById('productCategory'),
+        productQuantity: document.getElementById('productQuantity'),
+        productCostPrice: document.getElementById('productCostPrice'),
+        productSellingPrice: document.getElementById('productSellingPrice'),
+        productLowStockThreshold: document.getElementById('productLowStockThreshold'),
+        saveProductBtn: document.getElementById('saveProductBtn'),
+        cancelProductEditBtn: document.getElementById('cancelProductEditBtn'),
+        productSearch: document.getElementById('productSearch'),
+        categoryFilter: document.getElementById('categoryFilter'),
+        statusFilter: document.getElementById('statusFilter'),
+        movementForm: document.getElementById('movementForm'),
+        movementProduct: document.getElementById('movementProduct'),
+        movementType: document.getElementById('movementType'),
+        movementQuantity: document.getElementById('movementQuantity'),
+        movementAdjustmentWrap: document.getElementById('movementAdjustmentWrap'),
+        movementAdjustmentDirection: document.getElementById('movementAdjustmentDirection'),
+        movementNote: document.getElementById('movementNote'),
+        movementPreview: document.getElementById('movementPreview'),
+        movementHistoryList: document.getElementById('movementHistoryList'),
+        reportGrid: document.getElementById('reportGrid'),
+        settingsForm: document.getElementById('settingsForm'),
+        storeNameInput: document.getElementById('storeNameInput'),
+        currencySelect: document.getElementById('currencySelect'),
+        defaultLowStockThresholdInput: document.getElementById('defaultLowStockThresholdInput'),
+        resetInventoryBtn: document.getElementById('resetInventoryBtn'),
+        toast: document.getElementById('toast'),
+      };
+
+      let toastTimer = null;
+      let activeView = 'overview';
+
+      function createId(prefix) {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+          return `${prefix}_${window.crypto.randomUUID()}`;
+        }
+        return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      }
+
+      function safeNumber(value) {
+        const num = Number(value);
+        return Number.isFinite(num) ? num : 0;
+      }
+
+      function formatCurrency(value, overrideCurrency) {
+        const currency = overrideCurrency || state.settings.currency || 'NGN';
+        const locale = {
+          NGN: 'en-NG',
+          USD: 'en-US',
+          GBP: 'en-GB',
+          EUR: 'en-IE',
+          GHS: 'en-GH',
+          ZAR: 'en-ZA',
+        }[currency] || 'en-US';
+
+        return new Intl.NumberFormat(locale, {
+          style: 'currency',
+          currency,
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(Number(value) || 0);
+      }
+
+      function formatDateTime(isoValue) {
+        if (!isoValue) return '—';
+        try {
+          return new Date(isoValue).toLocaleString([], {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+          });
+        } catch (error) {
+          return '—';
+        }
+      }
+
+      function showToast(message, type = 'success') {
+        ui.toast.textContent = message;
+        ui.toast.className = `toast show ${type}`;
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+          ui.toast.className = 'toast';
+        }, 2200);
+      }
+
+      function normalizeProduct(product) {
+        return {
+          id: String(product && product.id ? product.id : createId('prod')),
+          name: String(product && product.name ? product.name : '').trim(),
+          sku: String(product && product.sku ? product.sku : '').trim(),
+          category: String(product && product.category ? product.category : 'General').trim() || 'General',
+          quantity: Math.max(0, safeNumber(product && product.quantity)),
+          costPrice: Math.max(0, safeNumber(product && product.costPrice)),
+          sellingPrice: Math.max(0, safeNumber(product && product.sellingPrice)),
+          lowStockThreshold: Math.max(0, safeNumber(product && product.lowStockThreshold)),
+          createdAt: product && product.createdAt ? product.createdAt : new Date().toISOString(),
+          updatedAt: product && product.updatedAt ? product.updatedAt : new Date().toISOString(),
         };
+      }
 
-        const state = {
-          settings: { ...defaultSettings },
-          products: [],
-          history: []
+      function normalizeHistoryItem(item) {
+        return {
+          id: String(item && item.id ? item.id : createId('move')),
+          productId: item && item.productId ? item.productId : '',
+          productName: item && item.productName ? item.productName : 'Product',
+          sku: item && item.sku ? item.sku : '',
+          type: ['received', 'reduced', 'adjustment'].includes(item && item.type) ? item.type : 'adjustment',
+          quantityDelta: safeNumber(item && item.quantityDelta),
+          quantityBefore: safeNumber(item && item.quantityBefore),
+          quantityAfter: safeNumber(item && item.quantityAfter),
+          note: String(item && item.note ? item.note : '').trim(),
+          createdAt: item && item.createdAt ? item.createdAt : new Date().toISOString(),
         };
+      }
 
-        const ui = {
-          storeTitleBrand: document.getElementById("storeTitleBrand"),
-          lastSavedText: document.getElementById("lastSavedText"),
-          navButtons: [...document.querySelectorAll(".nav-btn")],
-          views: [...document.querySelectorAll(".view")],
-          overviewCards: document.getElementById("overviewCards"),
-          recentMovementsList: document.getElementById("recentMovementsList"),
-          statusSummaryList: document.getElementById("statusSummaryList"),
-          productForm: document.getElementById("productForm"),
-          productEditId: document.getElementById("productEditId"),
-          productName: document.getElementById("productName"),
-          productSku: document.getElementById("productSku"),
-          productCategory: document.getElementById("productCategory"),
-          productQuantity: document.getElementById("productQuantity"),
-          productCostPrice: document.getElementById("productCostPrice"),
-          productSellingPrice: document.getElementById("productSellingPrice"),
-          productLowStockThreshold: document.getElementById("productLowStockThreshold"),
-          saveProductBtn: document.getElementById("saveProductBtn"),
-          cancelProductEditBtn: document.getElementById("cancelProductEditBtn"),
-          productSearch: document.getElementById("productSearch"),
-          categoryFilter: document.getElementById("categoryFilter"),
-          statusFilter: document.getElementById("statusFilter"),
-          productList: document.getElementById("productList"),
-          movementForm: document.getElementById("movementForm"),
-          movementProduct: document.getElementById("movementProduct"),
-          movementType: document.getElementById("movementType"),
-          movementQuantity: document.getElementById("movementQuantity"),
-          movementAdjustmentDirection: document.getElementById("movementAdjustmentDirection"),
-          movementAdjustmentWrap: document.getElementById("movementAdjustmentWrap"),
-          movementNote: document.getElementById("movementNote"),
-          movementPreview: document.getElementById("movementPreview"),
-          movementHistoryList: document.getElementById("movementHistoryList"),
-          reportGrid: document.getElementById("reportGrid"),
-          settingsForm: document.getElementById("settingsForm"),
-          storeNameInput: document.getElementById("storeNameInput"),
-          currencySelect: document.getElementById("currencySelect"),
-          defaultLowStockThresholdInput: document.getElementById("defaultLowStockThresholdInput"),
-          exportCsvBtn: document.getElementById("exportCsvBtn"),
-          exportJsonBtn: document.getElementById("exportJsonBtn"),
-          importJsonBtn: document.getElementById("importJsonBtn"),
-          loadDemoDataBtn: document.getElementById("loadDemoDataBtn"),
-          loadEmptyDataBtn: document.getElementById("loadEmptyDataBtn"),
-          resetDemoDataBtn: document.getElementById("resetDemoDataBtn"),
-          jsonImportInput: document.getElementById("jsonImportInput"),
-          toast: document.getElementById("toast")
+      function normalizeState(raw) {
+        const safeRaw = raw && typeof raw === 'object' ? raw : {};
+        const next = {
+          settings: {
+            ...defaultSettings,
+            ...(safeRaw.settings || {}),
+          },
+          products: Array.isArray(safeRaw.products) ? safeRaw.products.map(normalizeProduct) : [],
+          history: Array.isArray(safeRaw.history) ? safeRaw.history.map(normalizeHistoryItem) : [],
         };
+        return next;
+      }
 
-        let activeView = "overview";
-        let toastTimeout = null;
-
-        function escapeHtml(value) {
-          return String(value ?? "").replace(/[&<>"']/g, (char) => {
-            const map = {
-              "&": "&amp;",
-              "<": "&lt;",
-              ">": "&gt;",
-              '"': "&quot;",
-              "'": "&#39;"
-            };
-            return map[char];
-          });
-        }
-
-        function createId(prefix) {
-          if (window.crypto && typeof window.crypto.randomUUID === "function") {
-            return `${prefix}_${window.crypto.randomUUID()}`;
+      function readState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) {
+            return normalizeState({ settings: defaultSettings, products: [], history: [] });
           }
-          return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+          const parsed = JSON.parse(raw);
+          return normalizeState(parsed);
+        } catch (error) {
+          console.warn('Could not read local prototype data:', error);
+          return normalizeState({ settings: defaultSettings, products: [], history: [] });
         }
+      }
 
-        function formatDateTime(isoString) {
-          if (!isoString) return "—";
-          const date = new Date(isoString);
-          if (Number.isNaN(date.getTime())) return "—";
-          return date.toLocaleString(undefined, {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit"
-          });
-        }
+      function writeState() {
+        state.settings = {
+          ...defaultSettings,
+          ...state.settings,
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          settings: state.settings,
+          products: state.products,
+          history: state.history,
+        }));
+        ui.lastSavedText.textContent = 'Saved locally';
+      }
 
-        function formatCurrency(value, currencyOverride) {
-          const currency = currencyOverride || state.settings.currency || "NGN";
-          const locale = getLocaleForCurrency(currency);
-          const amount = Number(value) || 0;
-          return new Intl.NumberFormat(locale, {
-            style: "currency",
-            currency,
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-          }).format(amount);
-        }
+      function getProductStatus(product) {
+        const threshold = Math.max(0, safeNumber(product.lowStockThreshold || state.settings.defaultLowStockThreshold || 0));
+        const quantity = Math.max(0, safeNumber(product.quantity));
 
-        function getLocaleForCurrency(currency) {
-          const map = {
-            NGN: "en-NG",
-            USD: "en-US",
-            GBP: "en-GB",
-            EUR: "en-IE",
-            GHS: "en-GH",
-            ZAR: "en-ZA",
-            CAD: "en-CA",
-            AUD: "en-AU"
-          };
-          return map[currency] || "en-US";
-        }
+        if (quantity <= 0) return { label: 'Out of stock', className: 'status-out' };
+        if (quantity <= threshold) return { label: 'Low stock', className: 'status-low' };
+        return { label: 'Healthy', className: 'status-healthy' };
+      }
 
-        function formatNumber(value) {
-          return new Intl.NumberFormat(undefined, {
-            maximumFractionDigits: 2
-          }).format(Number(value) || 0);
-        }
+      function currencyLabel() {
+        return state.settings.currency || 'NGN';
+      }
 
-        function intlNumber(value) {
-          return Number(value) || 0;
-        }
+      function renderOverviewCards() {
+        const totalProducts = state.products.length;
+        const totalUnits = state.products.reduce((sum, product) => sum + safeNumber(product.quantity), 0);
+        const lowStockCount = state.products.filter((product) => getProductStatus(product).label !== 'Healthy').length;
+        const totalInventoryValue = state.products.reduce((sum, product) => sum + safeNumber(product.quantity) * safeNumber(product.costPrice), 0);
 
-        function safeRound(value) {
-          return Number(Math.round((Number(value) || 0) * 100) / 100);
-        }
+        const cards = [
+          { label: 'Products', value: String(totalProducts), foot: totalProducts === 1 ? '1 item tracked' : `${totalProducts} items tracked` },
+          { label: 'Units in stock', value: String(totalUnits), foot: 'Across all products' },
+          { label: 'Low stock', value: String(lowStockCount), foot: 'Needs attention' },
+          { label: 'Inventory value', value: formatCurrency(totalInventoryValue, currencyLabel()), foot: 'At cost price' },
+        ];
 
-        function getProductStatus(product) {
-          const threshold = Number(product.lowStockThreshold ?? state.settings.defaultLowStockThreshold ?? 0) || 0;
-          if (Number(product.quantity) <= 0) {
-            return { label: "Out of stock", className: "status-out" };
-          }
-          if (Number(product.quantity) <= threshold) {
-            return { label: "Low stock", className: "status-low" };
-          }
-          return { label: "Healthy", className: "status-healthy" };
-        }
+        ui.overviewCards.innerHTML = cards.map((card) => `
+          <div class="panel stat-card">
+            <div class="stat-label">${card.label}</div>
+            <div class="stat-value">${card.value}</div>
+            <div class="stat-foot">${card.foot}</div>
+          </div>
+        `).join('');
+      }
 
-        function normalizeProduct(product) {
-          const threshold = Number(product.lowStockThreshold ?? state.settings.defaultLowStockThreshold ?? 0) || 0;
-          return {
-            id: String(product.id || createId("prod")),
-            name: String(product.name || "Untitled product"),
-            sku: String(product.sku || "").trim(),
-            category: String(product.category || "General"),
-            quantity: Math.max(0, Number(product.quantity) || 0),
-            costPrice: Math.max(0, Number(product.costPrice) || 0),
-            sellingPrice: Math.max(0, Number(product.sellingPrice) || 0),
-            lowStockThreshold: Math.max(0, threshold),
-            createdAt: product.createdAt || new Date().toISOString(),
-            updatedAt: product.updatedAt || product.createdAt || new Date().toISOString()
-          };
-        }
-
-        function normalizeHistoryItem(item) {
-          return {
-            id: String(item.id || createId("mov")),
-            productId: String(item.productId || ""),
-            productName: String(item.productName || "Unknown product"),
-            sku: String(item.sku || ""),
-            type: ["received", "reduced", "adjustment"].includes(item.type) ? item.type : "adjustment",
-            quantityDelta: Number(item.quantityDelta) || 0,
-            quantityBefore: Number(item.quantityBefore) || 0,
-            quantityAfter: Number(item.quantityAfter) || 0,
-            note: String(item.note || ""),
-            timestamp: item.timestamp || new Date().toISOString()
-          };
-        }
-
-        function normalizeState(raw) {
-          const normalizedSettings = {
-            ...defaultSettings,
-            ...(raw && raw.settings ? raw.settings : {})
-          };
-
-          const normalizedProducts = Array.isArray(raw && raw.products)
-            ? raw.products.map(normalizeProduct)
-            : [];
-
-          const normalizedHistory = Array.isArray(raw && raw.history)
-            ? raw.history.map(normalizeHistoryItem)
-            : [];
-
-          return {
-            settings: normalizedSettings,
-            products: normalizedProducts,
-            history: normalizedHistory
-          };
-        }
-
-        function loadDemoData() {
-          const products = [
-            {
-              id: "prod_1",
-              name: "Rice 25kg",
-              sku: "RICE25A",
-              category: "Staples",
-              quantity: 18,
-              costPrice: 8200,
-              sellingPrice: 9300,
-              lowStockThreshold: 8,
-              createdAt: "2025-01-03T08:00:00.000Z",
-              updatedAt: "2025-10-20T10:10:00.000Z"
-            },
-            {
-              id: "prod_2",
-              name: "Garri 5kg",
-              sku: "GARRI5B",
-              category: "Staples",
-              quantity: 6,
-              costPrice: 2100,
-              sellingPrice: 2600,
-              lowStockThreshold: 10,
-              createdAt: "2025-01-04T09:15:00.000Z",
-              updatedAt: "2025-10-21T08:30:00.000Z"
-            },
-            {
-              id: "prod_3",
-              name: "Tomato Paste 170g",
-              sku: "TOM170C",
-              category: "Packaged food",
-              quantity: 42,
-              costPrice: 350,
-              sellingPrice: 420,
-              lowStockThreshold: 15,
-              createdAt: "2025-02-05T11:45:00.000Z",
-              updatedAt: "2025-10-22T12:20:00.000Z"
-            },
-            {
-              id: "prod_4",
-              name: "Palm Oil 5L",
-              sku: "OIL5D",
-              category: "Cooking",
-              quantity: 0,
-              costPrice: 6200,
-              sellingPrice: 7200,
-              lowStockThreshold: 5,
-              createdAt: "2025-02-10T14:28:00.000Z",
-              updatedAt: "2025-10-22T11:15:00.000Z"
-            },
-            {
-              id: "prod_5",
-              name: "Bottled Water 1L",
-              sku: "WATER1E",
-              category: "Beverages",
-              quantity: 30,
-              costPrice: 230,
-              sellingPrice: 300,
-              lowStockThreshold: 12,
-              createdAt: "2025-03-02T07:55:00.000Z",
-              updatedAt: "2025-10-21T16:40:00.000Z"
-            }
-          ];
-
-          const history = [
-            {
-              id: "mov_1",
-              productId: "prod_1",
-              productName: "Rice 25kg",
-              sku: "RICE25A",
-              type: "received",
-              quantityDelta: 12,
-              quantityBefore: 6,
-              quantityAfter: 18,
-              note: "Wholesale restock from distributor",
-              timestamp: "2025-10-20T10:10:00.000Z"
-            },
-            {
-              id: "mov_2",
-              productId: "prod_2",
-              productName: "Garri 5kg",
-              sku: "GARRI5B",
-              type: "reduced",
-              quantityDelta: -4,
-              quantityBefore: 10,
-              quantityAfter: 6,
-              note: "Daily sales",
-              timestamp: "2025-10-21T08:30:00.000Z"
-            },
-            {
-              id: "mov_3",
-              productId: "prod_3",
-              productName: "Tomato Paste 170g",
-              sku: "TOM170C",
-              type: "received",
-              quantityDelta: 15,
-              quantityBefore: 27,
-              quantityAfter: 42,
-              note: "New delivery",
-              timestamp: "2025-10-22T12:20:00.000Z"
-            },
-            {
-              id: "mov_4",
-              productId: "prod_4",
-              productName: "Palm Oil 5L",
-              sku: "OIL5D",
-              type: "adjustment",
-              quantityDelta: -8,
-              quantityBefore: 8,
-              quantityAfter: 0,
-              note: "Stock count correction",
-              timestamp: "2025-10-22T11:15:00.000Z"
-            },
-            {
-              id: "mov_5",
-              productId: "prod_5",
-              productName: "Bottled Water 1L",
-              sku: "WATER1E",
-              type: "received",
-              quantityDelta: 20,
-              quantityBefore: 10,
-              quantityAfter: 30,
-              note: "Morning restock",
-              timestamp: "2025-10-21T16:40:00.000Z"
-            }
-          ];
-
-          state.settings = {
-            ...defaultSettings,
-            storeName: "StockSense Demo",
-            currency: "NGN",
-            defaultLowStockThreshold: 10
-          };
-          state.products = products.map(normalizeProduct);
-          state.history = history.map(normalizeHistoryItem);
-          saveState();
-          renderAll();
-          showToast("Sample inventory loaded.", "success");
-        }
-
-        function loadEmptyInventory() {
-          if (!window.confirm("This will replace the current inventory with an empty inventory. Continue?")) {
-            return;
-          }
-
-          state.settings = {
-            ...defaultSettings,
-            storeName: state.settings.storeName || "StockSense",
-            currency: state.settings.currency || "NGN",
-            defaultLowStockThreshold: Number(state.settings.defaultLowStockThreshold) || 10
-          };
-          state.products = [];
-          state.history = [];
-          saveState();
-          renderAll();
-          showToast("Inventory reset to empty.", "success");
-        }
-
-        function resetDemoData() {
-          if (!window.confirm("This will restore the built-in demo inventory and overwrite current data. Continue?")) {
-            return;
-          }
-          loadDemoData();
-        }
-
-        function saveState() {
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-            ui.lastSavedText.textContent = "Saved locally";
-          } catch (error) {
-            showToast("Local storage is unavailable. Your browser cannot save changes.", "error");
-          }
-        }
-
-        function loadState() {
-          try {
-            const rawData = localStorage.getItem(STORAGE_KEY);
-            if (!rawData) {
-              return false;
-            }
-            const parsed = JSON.parse(rawData);
-            const normalized = normalizeState(parsed);
-            state.settings = normalized.settings;
-            state.products = normalized.products;
-            state.history = normalized.history;
-            return true;
-          } catch (error) {
-            console.warn("Failed to load saved data:", error);
-            return false;
-          }
-        }
-
-        function setView(viewName) {
-          activeView = viewName;
-          ui.navButtons.forEach((button) => {
-            button.classList.toggle("active", button.dataset.view === viewName);
-          });
-
-          ui.views.forEach((view) => {
-            view.classList.toggle("active", view.id === `${viewName}View`);
-          });
-        }
-
-        function showToast(message, type = "success") {
-          ui.toast.textContent = message;
-          ui.toast.className = "toast show";
-          if (type === "error") {
-            ui.toast.classList.add("error");
-          } else {
-            ui.toast.classList.add("success");
-          }
-
-          clearTimeout(toastTimeout);
-          toastTimeout = setTimeout(() => {
-            ui.toast.className = "toast";
-          }, 2700);
-        }
-
-        function getCategories() {
-          const categories = [...new Set(state.products.map((product) => product.category))].sort((a, b) =>
-            a.localeCompare(b)
-          );
-          ui.categoryFilter.innerHTML = `<option value="all">All categories</option>` +
-            categories
-              .map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`)
-              .join("");
-        }
-
-        function getFilteredProducts() {
-          const searchValue = ui.productSearch.value.trim().toLowerCase();
-          const categoryValue = ui.categoryFilter.value;
-          const statusValue = ui.statusFilter.value;
-
-          return state.products.filter((product) => {
-            const matchesSearch =
-              !searchValue ||
-              product.name.toLowerCase().includes(searchValue) ||
-              product.sku.toLowerCase().includes(searchValue);
-
-            const matchesCategory =
-              categoryValue === "all" || product.category === categoryValue;
-
-            const status = getProductStatus(product).label;
-            const matchesStatus =
-              statusValue === "all" ||
-              (statusValue === "healthy" && status === "Healthy") ||
-              (statusValue === "low" && status === "Low stock") ||
-              (statusValue === "out" && status === "Out of stock");
-
-            return matchesSearch && matchesCategory && matchesStatus;
-          });
-        }
-
-        function renderOverview() {
-          const totalProducts = state.products.length;
-          const totalUnits = state.products.reduce((sum, product) => sum + Number(product.quantity || 0), 0);
-          const inventoryCostValue = state.products.reduce(
-            (sum, product) => sum + Number(product.quantity || 0) * Number(product.costPrice || 0),
-            0
-          );
-          const lowStockProducts = state.products.filter((product) => getProductStatus(product).label !== "Healthy");
-          const recent = [...state.history]
-            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-            .slice(0, 5);
-
-          const healthyCount = state.products.filter((product) => getProductStatus(product).label === "Healthy").length;
-          const lowCount = state.products.filter((product) => getProductStatus(product).label === "Low stock").length;
-          const outCount = state.products.filter((product) => getProductStatus(product).label === "Out of stock").length;
-
-          ui.overviewCards.innerHTML = `
-            <div class="panel stat-card">
-              <div class="stat-label">Products</div>
-              <div class="stat-value">${escapeHtml(formatNumber(totalProducts))}</div>
-              <div class="stat-foot">Active SKUs</div>
-            </div>
-            <div class="panel stat-card">
-              <div class="stat-label">Units in stock</div>
-              <div class="stat-value">${escapeHtml(formatNumber(totalUnits))}</div>
-              <div class="stat-foot">Current available stock</div>
-            </div>
-            <div class="panel stat-card">
-              <div class="stat-label">Inventory value</div>
-              <div class="stat-value">${escapeHtml(formatCurrency(inventoryCostValue))}</div>
-              <div class="stat-foot">At cost price</div>
-            </div>
-            <div class="panel stat-card">
-              <div class="stat-label">At risk</div>
-              <div class="stat-value">${escapeHtml(formatNumber(lowStockProducts.length))}</div>
-              <div class="stat-foot">Low or out-of-stock</div>
+      function renderStatusSummary() {
+        if (!state.products.length) {
+          ui.statusSummaryList.innerHTML = `
+            <div class="empty-state">
+              <h3>No inventory yet</h3>
+              <div>Add products to populate your stock overview.</div>
             </div>
           `;
+          return;
+        }
 
-          const recentMarkup = recent.length
-            ? recent
-                .map((item) => {
-                  const label = item.type === "received" ? "Stock received" : item.type === "reduced" ? "Stock reduced" : "Adjustment";
-                  const delta = item.quantityDelta > 0 ? `+${item.quantityDelta}` : `${item.quantityDelta}`;
-                  const className = item.type === "received" ? "received" : item.type === "reduced" ? "reduced" : "adjustment";
-                  return `
-                    <div class="activity-item">
-                      <span class="activity-badge ${escapeHtml(className)}"></span>
-                      <div class="activity-copy">
-                        <strong>${escapeHtml(item.productName || "Unknown product")}</strong>
-                        <div class="activity-meta">${escapeHtml(label)} · ${escapeHtml(formatDateTime(item.timestamp))}</div>
-                      </div>
-                      <div class="activity-amount">${escapeHtml(delta)} units</div>
-                    </div>
-                  `;
-                })
-                .join("")
-            : `<div class="empty-state"><h3>No stock activity</h3><p>Stock movements will appear here once you record a restock or sale.</p></div>`;
+        const categories = ['Healthy', 'Low stock', 'Out of stock'];
+        const summary = categories.map((label) => {
+          const count = state.products.filter((product) => getProductStatus(product).label === label).length;
+          return { label, count };
+        });
 
-          ui.recentMovementsList.innerHTML = recentMarkup;
+        ui.statusSummaryList.innerHTML = summary.map((entry) => `
+          <div class="activity-item">
+            <span class="activity-badge ${entry.label === 'Healthy' ? 'received' : entry.label === 'Low stock' ? 'adjustment' : 'reduced'}"></span>
+            <div class="activity-copy">
+              <strong>${entry.label}</strong>
+              <div class="activity-meta">${entry.count} item${entry.count === 1 ? '' : 's'}</div>
+            </div>
+            <div class="activity-amount">${entry.count}</div>
+          </div>
+        `).join('');
+      }
 
-          const summary = [
-            { label: "Healthy", value: healthyCount, className: "status-healthy" },
-            { label: "Low stock", value: lowCount, className: "status-low" },
-            { label: "Out of stock", value: outCount, className: "status-out" }
-          ];
+      function renderRecentMovements() {
+        const moves = [...state.history].slice(0, 5);
 
-          const summaryMarkup = summary
-            .map((item) => {
-              const total = state.products.length || 1;
-              const percentage = Math.round((item.value / total) * 100);
-              return `
-                <div class="activity-item">
-                  <span class="activity-badge ${escapeHtml(item.className === "status-healthy" ? "received" : item.className === "status-low" ? "adjustment" : "reduced")}"></span>
-                  <div class="activity-copy">
-                    <strong>${escapeHtml(item.label)}</strong>
-                    <div class="activity-meta">${escapeHtml(String(item.value))} items · ${escapeHtml(String(percentage))}% of products</div>
-                  </div>
-                  <div class="activity-amount">${escapeHtml(String(item.value))}</div>
+        if (!moves.length) {
+          ui.recentMovementsList.innerHTML = `
+            <div class="empty-state">
+              <h3>No recent activity</h3>
+              <div>Your stock movements will appear here.</div>
+            </div>
+          `;
+          return;
+        }
+
+        ui.recentMovementsList.innerHTML = moves.map((movement) => {
+          const sign = movement.quantityDelta >= 0 ? '+' : '-';
+          const typeClass = movement.type === 'received' ? 'received' : movement.type === 'reduced' ? 'reduced' : 'adjustment';
+          const label = movement.type === 'received' ? 'Received' : movement.type === 'reduced' ? 'Reduced' : 'Adjusted';
+
+          return `
+            <div class="activity-item">
+              <span class="activity-badge ${typeClass}"></span>
+              <div class="activity-copy">
+                <strong>${movement.productName || 'Product'}</strong>
+                <div class="activity-meta">${label} · ${formatDateTime(movement.createdAt)}</div>
+              </div>
+              <div class="activity-amount">${sign}${Math.abs(movement.quantityDelta)}</div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      function getFilteredProducts() {
+        const search = ui.productSearch.value.trim().toLowerCase();
+        const category = ui.categoryFilter.value;
+        const status = ui.statusFilter.value;
+
+        return state.products.filter((product) => {
+          const matchesSearch = !search || product.name.toLowerCase().includes(search) || product.sku.toLowerCase().includes(search);
+          const matchesCategory = category === 'all' || product.category === category;
+          const currentStatus = getProductStatus(product).label;
+          const matchesStatus = status === 'all' || (status === 'healthy' && currentStatus === 'Healthy') || (status === 'low' && currentStatus === 'Low stock') || (status === 'out' && currentStatus === 'Out of stock');
+          return matchesSearch && matchesCategory && matchesStatus;
+        });
+      }
+
+      function renderCategoryOptions() {
+        const categories = [...new Set(state.products.map((product) => product.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+        const current = ui.categoryFilter.value || 'all';
+
+        ui.categoryFilter.innerHTML = '<option value="all">All categories</option>' + categories.map((category) => `<option value="${category}">${category}</option>`).join('');
+        ui.categoryFilter.value = categories.includes(current) ? current : 'all';
+      }
+
+      function renderProducts() {
+        renderCategoryOptions();
+        const filteredProducts = getFilteredProducts();
+
+        if (!filteredProducts.length) {
+          ui.productList.innerHTML = `
+            <div class="empty-state">
+              <h3>No matching products</h3>
+              <div>${state.products.length ? 'Try a different search or filter.' : 'Add your first product to get started.'}</div>
+            </div>
+          `;
+          return;
+        }
+
+        ui.productList.innerHTML = filteredProducts.map((product) => {
+          const status = getProductStatus(product);
+          const unitValue = product.quantity * product.costPrice;
+
+          return `
+            <div class="product-card">
+              <div class="product-top">
+                <div>
+                  <h3 class="product-name">${product.name}</h3>
+                  <div class="product-meta">${product.sku ? `SKU: ${product.sku}` : 'No SKU'} · ${product.category || 'General'}</div>
                 </div>
-              `;
-            })
-            .join("");
-
-          ui.statusSummaryList.innerHTML = summaryMarkup;
-        }
-
-        function renderProducts() {
-          const filtered = getFilteredProducts();
-
-          if (!filtered.length) {
-            ui.productList.innerHTML = `
-              <div class="empty-state">
-                <h3>No products match this filter</h3>
-                <p>Try a different name, update the category, or reset the search.</p>
+                <span class="status-badge ${status.className}">${status.label}</span>
               </div>
-            `;
-            return;
-          }
 
-          ui.productList.innerHTML = filtered
-            .map((product) => {
-              const status = getProductStatus(product);
-              const totalProductValue = Number(product.quantity) * Number(product.costPrice || 0);
-
-              return `
-                <article class="product-card" aria-label="${escapeHtml(product.name)}">
-                  <div class="product-top">
-                    <div>
-                      <h3 class="product-name">${escapeHtml(product.name)}</h3>
-                      <div class="product-meta">
-                        ${escapeHtml(product.sku)} · ${escapeHtml(product.category)}
-                      </div>
-                    </div>
-                    <span class="status-badge ${escapeHtml(status.className)}">${escapeHtml(status.label)}</span>
-                  </div>
-
-                  <div class="product-grid">
-                    <div class="mini-stat">
-                      <span class="label">Current qty</span>
-                      <span class="value">${escapeHtml(formatNumber(product.quantity))}</span>
-                    </div>
-                    <div class="mini-stat">
-                      <span class="label">Unit cost</span>
-                      <span class="value">${escapeHtml(formatCurrency(product.costPrice, state.settings.currency))}</span>
-                    </div>
-                    <div class="mini-stat">
-                      <span class="label">Selling price</span>
-                      <span class="value">${escapeHtml(formatCurrency(product.sellingPrice, state.settings.currency))}</span>
-                    </div>
-                    <div class="mini-stat">
-                      <span class="label">Inventory value</span>
-                      <span class="value">${escapeHtml(formatCurrency(totalProductValue, state.settings.currency))}</span>
-                    </div>
-                  </div>
-
-                  <div class="product-actions">
-                    <button class="icon-btn" type="button" data-action="edit-product" data-id="${escapeHtml(product.id)}">Edit</button>
-                    <button class="icon-btn" type="button" data-action="delete-product" data-id="${escapeHtml(product.id)}">Delete</button>
-                  </div>
-                </article>
-              `;
-            })
-            .join("");
-        }
-
-        function renderMovementPreview() {
-          const productId = ui.movementProduct.value;
-          const movementType = ui.movementType.value;
-          const quantity = Number(ui.movementQuantity.value || 0);
-          const product = state.products.find((item) => item.id === productId);
-
-          if (!product) {
-            ui.movementPreview.textContent = "Select a product to preview stock impact.";
-            return;
-          }
-
-          if (!Number.isFinite(quantity) || quantity <= 0) {
-            ui.movementPreview.textContent = "Enter a valid quantity to preview the stock change.";
-            return;
-          }
-
-          let result = product.quantity;
-          let label = "";
-          if (movementType === "received") {
-            result = product.quantity + quantity;
-            label = `This will move ${escapeHtml(product.name)} from ${product.quantity} units to ${result} units after receiving ${quantity}.`;
-          } else if (movementType === "reduced") {
-            if (quantity > product.quantity) {
-              label = `This sale would exceed available stock (${product.quantity} units).`;
-            } else {
-              result = product.quantity - quantity;
-              label = `This will move ${escapeHtml(product.name)} from ${product.quantity} units to ${result} units after reducing by ${quantity}.`;
-            }
-          } else {
-            const direction = ui.movementAdjustmentDirection.value;
-            if (direction === "increase") {
-              result = product.quantity + quantity;
-              label = `This adjustment will move ${escapeHtml(product.name)} from ${product.quantity} units to ${result} units.`;
-            } else {
-              if (quantity > product.quantity) {
-                label = `This adjustment would exceed available stock (${product.quantity} units).`;
-              } else {
-                result = product.quantity - quantity;
-                label = `This adjustment will move ${escapeHtml(product.name)} from ${product.quantity} units to ${result} units.`;
-              }
-            }
-          }
-
-          ui.movementPreview.textContent = label;
-        }
-
-        function renderMovementHistory() {
-          if (!state.history.length) {
-            ui.movementHistoryList.innerHTML = `
-              <div class="empty-state">
-                <h3>No movement history</h3>
-                <p>Restocks, sales, and corrections will appear here in reverse chronological order.</p>
+              <div class="product-grid">
+                <div class="mini-stat">
+                  <span class="label">Quantity</span>
+                  <span class="value">${product.quantity}</span>
+                </div>
+                <div class="mini-stat">
+                  <span class="label">Stock alert</span>
+                  <span class="value">${product.lowStockThreshold}</span>
+                </div>
+                <div class="mini-stat">
+                  <span class="label">Cost</span>
+                  <span class="value">${formatCurrency(product.costPrice, currencyLabel())}</span>
+                </div>
+                <div class="mini-stat">
+                  <span class="label">Value</span>
+                  <span class="value">${formatCurrency(unitValue, currencyLabel())}</span>
+                </div>
               </div>
-            `;
-            return;
-          }
 
-          const sortedHistory = [...state.history].sort(
-            (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
-          );
+              <div class="product-actions">
+                <button type="button" class="icon-btn" data-action="decrease" data-id="${product.id}">−</button>
+                <button type="button" class="icon-btn" data-action="increase" data-id="${product.id}">+</button>
+                <button type="button" class="btn btn-soft" data-action="edit" data-id="${product.id}">Edit</button>
+                <button type="button" class="btn btn-danger" data-action="delete" data-id="${product.id}">Delete</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
 
-          ui.movementHistoryList.innerHTML = sortedHistory
-            .slice(0, 40)
-            .map((entry) => {
-              const directionLabel =
-                entry.type === "received"
-                  ? "Stock received"
-                  : entry.type === "reduced"
-                    ? "Stock reduced"
-                    : "Adjustment";
-
-              const deltaValue =
-                entry.quantityDelta > 0 ? `+${entry.quantityDelta}` : `${entry.quantityDelta}`;
-
-              return `
-                <article class="movement-row">
-                  <div>
-                    <div class="movement-type">${escapeHtml(entry.productName || "Unknown product")} · ${escapeHtml(directionLabel)}</div>
-                    <div class="movement-note">${escapeHtml(entry.note || "No note")}</div>
-                    <div class="movement-note">${escapeHtml(formatDateTime(entry.timestamp))}</div>
-                  </div>
-                  <div>
-                    <strong>${escapeHtml(deltaValue)} units</strong>
-                  </div>
-                </article>
-              `;
-            })
-            .join("");
+      function renderMovementHistory() {
+        if (!state.history.length) {
+          ui.movementHistoryList.innerHTML = `
+            <div class="empty-state">
+              <h3>No stock movements</h3>
+              <div>Record your first received, sold, or adjusted quantity to populate this list.</div>
+            </div>
+          `;
+          return;
         }
 
-        function renderReports() {
-          const totalCostValue = state.products.reduce(
-            (sum, product) => sum + Number(product.quantity || 0) * Number(product.costPrice || 0),
-            0
-          );
-          const totalPotentialRevenue = state.products.reduce(
-            (sum, product) => sum + Number(product.quantity || 0) * Number(product.sellingPrice || 0),
-            0
-          );
-
-          const counts = {
-            healthy: state.products.filter((product) => getProductStatus(product).label === "Healthy").length,
-            low: state.products.filter((product) => getProductStatus(product).label === "Low stock").length,
-            out: state.products.filter((product) => getProductStatus(product).label === "Out of stock").length
+        ui.movementHistoryList.innerHTML = [...state.history].reverse().slice(0, 10).map((movement) => {
+          const typeMap = {
+            received: { label: 'Stock received', className: 'received' },
+            reduced: { label: 'Stock reduced', className: 'reduced' },
+            adjustment: { label: 'Adjustment', className: 'adjustment' },
           };
+          const info = typeMap[movement.type] || typeMap.adjustment;
+          const quantityPrefix = movement.quantityDelta >= 0 ? '+' : '-';
 
-          const movementCounts = state.history.reduce((acc, item) => {
-            const key = item.type === "received" ? "received" : item.type === "reduced" ? "reduced" : "adjustment";
-            acc[key] = (acc[key] || 0) + 1;
-            return acc;
-          }, {});
+          return `
+            <div class="movement-row">
+              <div>
+                <div class="movement-type">${info.label}: ${movement.productName || 'Product'}</div>
+                <div class="movement-note">${formatDateTime(movement.createdAt)}${movement.note ? ` · ${movement.note}` : ''}</div>
+              </div>
+              <div class="m-strong">${quantityPrefix}${Math.abs(movement.quantityDelta)}</div>
+            </div>
+          `;
+        }).join('');
+      }
 
-          const categories = state.products.reduce((acc, product) => {
-            const key = product.category || "General";
-            acc[key] = (acc[key] || { quantity: 0, value: 0 });
-            acc[key].quantity += Number(product.quantity || 0);
-            acc[key].value += Number(product.quantity || 0) * Number(product.costPrice || 0);
-            return acc;
-          }, {});
-
-          const categoryEntries = Object.entries(categories).sort((a, b) => b[1].quantity - a[1].quantity);
-
-          const maxCategoryQty = categoryEntries.length
-            ? Math.max(...categoryEntries.map((entry) => entry[1].quantity), 1)
-            : 1;
-
-          const categoryMarkup = categoryEntries.length
-            ? categoryEntries
-                .map(([category, values]) => {
-                  const percent = Math.round((values.quantity / maxCategoryQty) * 100);
-                  return `
-                    <div class="bar-row">
-                      <div>${escapeHtml(category)}</div>
-                      <div class="bar-track"><div class="bar-fill" style="width:${percent}%;"></div></div>
-                      <div>${escapeHtml(formatNumber(values.quantity))}</div>
-                    </div>
-                  `;
-                })
-                .join("")
-            : `<div class="empty-state"><h3>No category data</h3><p>Add products to see a stock summary by category.</p></div>`;
-
-          const movementSummaryEntries = [
-            { label: "Received", value: movementCounts.received || 0 },
-            { label: "Reduced", value: movementCounts.reduced || 0 },
-            { label: "Adjustments", value: movementCounts.adjustment || 0 }
-          ];
-
-          const movementMarkup = movementSummaryEntries
-            .map((entry) => {
-              const max = Math.max(...movementSummaryEntries.map((item) => item.value), 1);
-              const width = Math.round((entry.value / max) * 100);
-              return `
-                <div class="bar-row">
-                  <div>${escapeHtml(entry.label)}</div>
-                  <div class="bar-track"><div class="bar-fill" style="width:${width}%;"></div></div>
-                  <div>${escapeHtml(String(entry.value))}</div>
-                </div>
-              `;
-            })
-            .join("");
-
+      function renderReports() {
+        if (!state.products.length) {
           ui.reportGrid.innerHTML = `
             <div class="panel report-card">
-              <h3>Inventory value at cost</h3>
-              <div class="stat-value">${escapeHtml(formatCurrency(totalCostValue, state.settings.currency))}</div>
-              <div class="stat-foot">Calculated from current stock × cost price.</div>
-            </div>
-
-            <div class="panel report-card">
-              <h3>Potential sales value</h3>
-              <div class="stat-value">${escapeHtml(formatCurrency(totalPotentialRevenue, state.settings.currency))}</div>
-              <div class="stat-foot">Potential revenue at selling prices. This is not historical sales.</div>
-            </div>
-
-            <div class="panel report-card">
-              <h3>Stock status by product</h3>
-              <div class="bars">
-                <div class="bar-row">
-                  <div>Healthy</div>
-                  <div class="bar-track"><div class="bar-fill" style="width:${Math.max(10, Math.round((counts.healthy / Math.max(state.products.length,1)) * 100))}%;"></div></div>
-                  <div>${escapeHtml(String(counts.healthy))}</div>
-                </div>
-                <div class="bar-row">
-                  <div>Low stock</div>
-                  <div class="bar-track"><div class="bar-fill" style="width:${Math.max(10, Math.round((counts.low / Math.max(state.products.length,1)) * 100))}%; background: linear-gradient(90deg, #d79b43 0%, #8d5b13 100%);"></div></div>
-                  <div>${escapeHtml(String(counts.low))}</div>
-                </div>
-                <div class="bar-row">
-                  <div>Out of stock</div>
-                  <div class="bar-track"><div class="bar-fill" style="width:${Math.max(10, Math.round((counts.out / Math.max(state.products.length,1)) * 100))}%; background: linear-gradient(90deg, #b44444 0%, #7d2d2d 100%);"></div></div>
-                  <div>${escapeHtml(String(counts.out))}</div>
-                </div>
+              <h3>Inventory report</h3>
+              <div class="empty-state" style="padding: 18px;">
+                <h3>No products</h3>
+                <div>Add products to see stock distribution.</div>
               </div>
             </div>
-
-            <div class="panel report-card">
-              <h3>Most frequent movements</h3>
-              <div class="bars">${movementMarkup}</div>
-            </div>
-
-            <div class="panel report-card" style="grid-column: 1 / -1;">
-              <h3>Stock summary by category</h3>
-              <div class="bars">${categoryMarkup}</div>
-            </div>
           `;
+          return;
         }
 
-        function renderSettings() {
-          ui.storeTitleBrand.textContent = state.settings.storeName || "StockSense";
-          ui.storeNameInput.value = state.settings.storeName || "StockSense";
-          ui.currencySelect.value = state.settings.currency || "NGN";
-          ui.defaultLowStockThresholdInput.value = Number(state.settings.defaultLowStockThreshold || 10);
+        const items = state.products
+          .map((product) => {
+            const total = Math.max(1, state.products.reduce((sum, item) => sum + safeNumber(item.quantity), 0));
+            const percentage = Math.max(0, (safeNumber(product.quantity) / total) * 100);
+            return { product, percentage };
+          })
+          .sort((a, b) => b.product.quantity - a.product.quantity)
+          .slice(0, 5);
+
+        const cards = [
+          {
+            title: 'Inventory mix',
+            body: items.map(({ product, percentage }) => `
+              <div class="bar-row">
+                <span>${product.name}</span>
+                <div class="bar-track"><div class="bar-fill" style="width:${Math.min(100, percentage)}%"></div></div>
+                <span>${Math.round(percentage)}%</span>
+              </div>
+            `).join(''),
+          },
+          {
+            title: 'Quick summary',
+            body: `
+              <div class="chart-list">
+                <div class="mini-stat"><span class="label">Total products</span><span class="value">${state.products.length}</span></div>
+                <div class="mini-stat"><span class="label">Units available</span><span class="value">${state.products.reduce((sum, p) => sum + safeNumber(p.quantity), 0)}</span></div>
+                <div class="mini-stat"><span class="label">Low stock</span><span class="value">${state.products.filter((p) => getProductStatus(p).label !== 'Healthy').length}</span></div>
+                <div class="mini-stat"><span class="label">Inventory value</span><span class="value">${formatCurrency(state.products.reduce((sum, p) => sum + safeNumber(p.quantity) * safeNumber(p.costPrice), 0), currencyLabel())}</span></div>
+              </div>
+            `,
+          },
+        ];
+
+        ui.reportGrid.innerHTML = cards.map((card) => `
+          <div class="panel report-card">
+            <h3>${card.title}</h3>
+            <div class="bars">${card.body}</div>
+          </div>
+        `).join('');
+      }
+
+      function updateMovementPreview() {
+        const productId = ui.movementProduct.value;
+        const product = state.products.find((item) => item.id === productId);
+        const movementType = ui.movementType.value;
+        const quantity = safeNumber(ui.movementQuantity.value);
+
+        if (!product) {
+          ui.movementPreview.textContent = 'Select a product to preview stock impact.';
+          return;
         }
 
-        function renderMovementProductList() {
-          const options = state.products
-            .map((product) => {
-              return `<option value="${escapeHtml(product.id)}">${escapeHtml(product.name)} · ${escapeHtml(product.sku)}</option>`;
-            })
-            .join("");
-
-          ui.movementProduct.innerHTML = options || `<option value="">No products available</option>`;
-          if (!state.products.length) {
-            ui.movementProduct.disabled = true;
-            ui.movementQuantity.disabled = true;
-            ui.movementType.disabled = true;
-            ui.movementNote.disabled = true;
-            ui.movementAdjustmentDirection.disabled = true;
-          } else {
-            ui.movementProduct.disabled = false;
-            ui.movementQuantity.disabled = false;
-            ui.movementType.disabled = false;
-            ui.movementNote.disabled = false;
-            ui.movementAdjustmentDirection.disabled = false;
-          }
+        if (!quantity) {
+          ui.movementPreview.textContent = `${product.name} is selected. Enter a quantity to preview the effect.`;
+          return;
         }
 
-        function collectProductFormData() {
-          const name = ui.productName.value.trim();
-          const sku = ui.productSku.value.trim();
-          const category = ui.productCategory.value.trim();
-          const quantity = Number(ui.productQuantity.value);
-          const costPrice = Number(ui.productCostPrice.value);
-          const sellingPrice = Number(ui.productSellingPrice.value);
-          const lowStockThreshold = Number(ui.productLowStockThreshold.value);
-
-          return {
-            name,
-            sku,
-            category,
-            quantity,
-            costPrice,
-            sellingPrice,
-            lowStockThreshold
-          };
+        if (movementType === 'received') {
+          ui.movementPreview.textContent = `${product.name}: after receiving ${quantity}, stock will become ${product.quantity + quantity}.`;
+          return;
         }
 
-        function validateProductData(data, currentEditId) {
-          if (!data.name) return "Product name is required.";
-          if (!data.sku) return "SKU is required.";
-          if (!data.category) return "Category is required.";
-          if (!Number.isFinite(data.quantity) || data.quantity < 0 || !Number.isInteger(data.quantity)) {
-            return "Quantity must be a whole number greater than or equal to zero.";
-          }
-          if (!Number.isFinite(data.costPrice) || data.costPrice <= 0) {
-            return "Cost price must be greater than zero.";
-          }
-          if (!Number.isFinite(data.sellingPrice) || data.sellingPrice <= 0) {
-            return "Selling price must be greater than zero.";
-          }
-          if (!Number.isFinite(data.lowStockThreshold) || data.lowStockThreshold < 0 || !Number.isInteger(data.lowStockThreshold)) {
-            return "Low-stock threshold must be a whole number greater than or equal to zero.";
-          }
+        if (movementType === 'reduced') {
+          const nextValue = Math.max(0, product.quantity - quantity);
+          ui.movementPreview.textContent = `${product.name}: after reducing ${quantity}, stock will become ${nextValue}.`;
+          return;
+        }
 
-          const duplicate = state.products.find((product) => {
-            if (product.id === currentEditId) return false;
-            return product.sku.toLowerCase() === data.sku.toLowerCase();
+        const direction = ui.movementAdjustmentDirection.value;
+        const newQty = direction === 'increase' ? product.quantity + quantity : Math.max(0, product.quantity - quantity);
+        ui.movementPreview.textContent = `${product.name}: ${direction === 'increase' ? 'increasing' : 'decreasing'} by ${quantity} will result in ${newQty} units.`;
+      }
+
+      function updateMovementSelectOptions() {
+        ui.movementProduct.innerHTML = state.products.length
+          ? state.products.map((product) => `<option value="${product.id}">${product.name}</option>`).join('')
+          : '<option value="">No products available</option>';
+
+        if (!state.products.length) {
+          ui.movementProduct.disabled = true;
+          ui.movementType.disabled = true;
+          ui.movementQuantity.disabled = true;
+          ui.movementNote.disabled = true;
+          return;
+        }
+
+        ui.movementProduct.disabled = false;
+        ui.movementType.disabled = false;
+        ui.movementQuantity.disabled = false;
+        ui.movementNote.disabled = false;
+      }
+
+      function renderAll() {
+        ui.storeTitleBrand.textContent = state.settings.storeName || 'StockSense';
+        ui.storeNameInput.value = state.settings.storeName || 'StockSense';
+        ui.currencySelect.value = state.settings.currency || 'NGN';
+        ui.defaultLowStockThresholdInput.value = state.settings.defaultLowStockThreshold || 10;
+
+        renderOverviewCards();
+        renderStatusSummary();
+        renderRecentMovements();
+        renderProducts();
+        renderMovementHistory();
+        renderReports();
+        updateMovementSelectOptions();
+        updateMovementPreview();
+      }
+
+      function validateProductForm() {
+        const name = ui.productName.value.trim();
+        const sku = ui.productSku.value.trim();
+        const category = ui.productCategory.value.trim();
+        const quantity = safeNumber(ui.productQuantity.value);
+        const costPrice = safeNumber(ui.productCostPrice.value);
+        const sellingPrice = safeNumber(ui.productSellingPrice.value);
+        const lowStockThreshold = safeNumber(ui.productLowStockThreshold.value);
+
+        if (!name) {
+          throw new Error('Product name is required.');
+        }
+
+        if (!sku) {
+          throw new Error('SKU is required.');
+        }
+
+        if (!category) {
+          throw new Error('Category is required.');
+        }
+
+        if (quantity < 0) {
+          throw new Error('Quantity must be zero or greater.');
+        }
+
+        if (costPrice < 0 || sellingPrice < 0) {
+          throw new Error('Prices cannot be negative.');
+        }
+
+        if (lowStockThreshold < 0) {
+          throw new Error('Low-stock threshold cannot be negative.');
+        }
+
+        return {
+          name,
+          sku,
+          category: category || 'General',
+          quantity,
+          costPrice,
+          sellingPrice,
+          lowStockThreshold,
+        };
+      }
+
+      function resetProductForm() {
+        ui.productForm.reset();
+        ui.productEditId.value = '';
+        ui.saveProductBtn.textContent = 'Add product';
+        ui.cancelProductEditBtn.style.display = 'none';
+      }
+
+      function saveProduct(event) {
+        event.preventDefault();
+
+        try {
+          const payload = validateProductForm();
+          const id = ui.productEditId.value || createId('prod');
+          const existingIndex = state.products.findIndex((product) => product.id === id);
+
+          const normalized = normalizeProduct({
+            ...state.products[existingIndex],
+            id,
+            name: payload.name,
+            sku: payload.sku,
+            category: payload.category,
+            quantity: payload.quantity,
+            costPrice: payload.costPrice,
+            sellingPrice: payload.sellingPrice,
+            lowStockThreshold: payload.lowStockThreshold,
+            updatedAt: new Date().toISOString(),
+            createdAt: existingIndex >= 0 ? state.products[existingIndex].createdAt : new Date().toISOString(),
           });
-          if (duplicate) {
-            return `SKU "${data.sku}" is already in use. Please choose a unique one.`;
-          }
 
-          return "";
-        }
-
-        function resetProductForm() {
-          ui.productForm.reset();
-          ui.productEditId.value = "";
-          ui.saveProductBtn.textContent = "Add product";
-          ui.cancelProductEditBtn.style.display = "none";
-        }
-
-        function populateProductForm(productId) {
-          const product = state.products.find((item) => item.id === productId);
-          if (!product) return;
-
-          ui.productEditId.value = product.id;
-          ui.productName.value = product.name;
-          ui.productSku.value = product.sku;
-          ui.productCategory.value = product.category;
-          ui.productQuantity.value = product.quantity;
-          ui.productCostPrice.value = product.costPrice;
-          ui.productSellingPrice.value = product.sellingPrice;
-          ui.productLowStockThreshold.value = product.lowStockThreshold || state.settings.defaultLowStockThreshold || 0;
-
-          ui.saveProductBtn.textContent = "Save changes";
-          ui.cancelProductEditBtn.style.display = "inline-flex";
-          activeView = "products";
-          setView("products");
-        }
-
-        function handleProductSubmit(event) {
-          event.preventDefault();
-          const input = collectProductFormData();
-          const editId = ui.productEditId.value || "";
-          const validationError = validateProductData(input, editId);
-
-          if (validationError) {
-            showToast(validationError, "error");
-            return;
-          }
-
-          if (editId) {
-            const product = state.products.find((item) => item.id === editId);
-            if (!product) {
-              showToast("Could not find the product you are editing.", "error");
-              return;
-            }
-
-            product.name = input.name;
-            product.sku = input.sku;
-            product.category = input.category;
-            product.quantity = input.quantity;
-            product.costPrice = input.costPrice;
-            product.sellingPrice = input.sellingPrice;
-            product.lowStockThreshold = input.lowStockThreshold;
-            product.updatedAt = new Date().toISOString();
-            showToast("Product updated.", "success");
+          if (existingIndex >= 0) {
+            state.products[existingIndex] = normalized;
           } else {
-            const newProduct = normalizeProduct({
-              id: createId("prod"),
-              name: input.name,
-              sku: input.sku,
-              category: input.category,
-              quantity: input.quantity,
-              costPrice: input.costPrice,
-              sellingPrice: input.sellingPrice,
-              lowStockThreshold: input.lowStockThreshold,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            });
-            state.products.push(newProduct);
-            showToast("Product added.", "success");
+            state.products.push(normalized);
           }
 
-          saveState();
-          renderAll();
+          writeState();
           resetProductForm();
-        }
-
-        function handleDeleteProduct(productId) {
-          const product = state.products.find((item) => item.id === productId);
-          if (!product) {
-            showToast("Product not found.", "error");
-            return;
-          }
-
-          const movementCount = state.history.filter((item) => item.productId === productId).length;
-          const message =
-            movementCount > 0
-              ? `Delete "${product.name}"? This product has ${movementCount} movement record(s). Removing it will also delete its movement history, which may make past stock activity harder to interpret.`
-              : `Delete "${product.name}"? This action cannot be undone.`;
-
-          if (!window.confirm(message)) {
-            return;
-          }
-
-          state.products = state.products.filter((item) => item.id !== productId);
-          state.history = state.history.filter((item) => item.productId !== productId);
-          saveState();
           renderAll();
+          showToast(existingIndex >= 0 ? 'Product updated.' : 'Product added.', 'success');
+        } catch (error) {
+          showToast(error.message, 'error');
+        }
+      }
 
-          if (ui.productEditId.value === productId) {
-            resetProductForm();
-          }
+      function setProductForEdit(productId) {
+        const product = state.products.find((item) => item.id === productId);
+        if (!product) return;
 
-          showToast("Product deleted.", "success");
+        ui.productEditId.value = product.id;
+        ui.productName.value = product.name;
+        ui.productSku.value = product.sku;
+        ui.productCategory.value = product.category;
+        ui.productQuantity.value = product.quantity;
+        ui.productCostPrice.value = product.costPrice;
+        ui.productSellingPrice.value = product.sellingPrice;
+        ui.productLowStockThreshold.value = product.lowStockThreshold;
+        ui.saveProductBtn.textContent = 'Save changes';
+        ui.cancelProductEditBtn.style.display = 'inline-flex';
+        document.querySelector('[data-view="products"]').click();
+      }
+
+      function confirmDelete(productId) {
+        const product = state.products.find((item) => item.id === productId);
+        if (!product) return;
+
+        const confirmed = window.confirm(`Delete ${product.name}? This cannot be undone.`);
+        if (!confirmed) return;
+
+        state.products = state.products.filter((item) => item.id !== productId);
+        state.history = state.history.filter((item) => item.productId !== productId);
+        writeState();
+        renderAll();
+        showToast('Product deleted.', 'success');
+      }
+
+      function adjustProductQuantity(productId, delta) {
+        const product = state.products.find((item) => item.id === productId);
+        if (!product) return;
+        const nextQuantity = Math.max(0, safeNumber(product.quantity) + delta);
+        const before = safeNumber(product.quantity);
+        product.quantity = nextQuantity;
+        product.updatedAt = new Date().toISOString();
+
+        state.history.push(normalizeHistoryItem({
+          id: createId('move'),
+          productId: product.id,
+          productName: product.name,
+          sku: product.sku,
+          type: delta > 0 ? 'received' : 'reduced',
+          quantityDelta: delta,
+          quantityBefore: before,
+          quantityAfter: nextQuantity,
+          note: delta > 0 ? 'Quick stock update' : 'Quick stock update',
+          createdAt: new Date().toISOString(),
+        }));
+
+        writeState();
+        renderAll();
+        showToast(delta > 0 ? 'Stock increased.' : 'Stock decreased.', 'success');
+      }
+
+      function validateMovementForm() {
+        const productId = ui.movementProduct.value;
+        const product = state.products.find((item) => item.id === productId);
+        const movementType = ui.movementType.value;
+        const quantity = safeNumber(ui.movementQuantity.value);
+        const note = ui.movementNote.value.trim();
+
+        if (!product) {
+          throw new Error('Select a product before recording a movement.');
         }
 
-        function handleMovementSubmit(event) {
-          event.preventDefault();
+        if (!quantity || quantity < 1) {
+          throw new Error('Movement quantity must be at least 1.');
+        }
 
-          if (!state.products.length) {
-            showToast("Add at least one product before recording a movement.", "error");
-            return;
+        if (movementType === 'reduced' && quantity > product.quantity) {
+          throw new Error('Reduction cannot exceed current stock.');
+        }
+
+        if (movementType === 'adjustment') {
+          const direction = ui.movementAdjustmentDirection.value;
+          if (direction === 'decrease' && quantity > product.quantity) {
+            throw new Error('Adjustment decrease cannot exceed current stock.');
           }
+        }
 
-          const productId = ui.movementProduct.value;
-          const movementType = ui.movementType.value;
-          const quantity = Number(ui.movementQuantity.value);
-          const note = ui.movementNote.value.trim();
+        return { product, movementType, quantity, note };
+      }
 
-          if (!productId) {
-            showToast("Select a product first.", "error");
-            return;
-          }
+      function applyMovement(event) {
+        event.preventDefault();
 
-          const product = state.products.find((item) => item.id === productId);
-          if (!product) {
-            showToast("Selected product could not be found.", "error");
-            return;
-          }
-
-          if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isInteger(quantity)) {
-            showToast("Movement quantity must be a valid whole number greater than zero.", "error");
-            return;
-          }
-
+        try {
+          const { product, movementType, quantity, note } = validateMovementForm();
+          const before = product.quantity;
+          let after = before;
           let delta = 0;
-          let allowed = true;
 
-          if (movementType === "received") {
+          if (movementType === 'received') {
+            after = before + quantity;
             delta = quantity;
-          } else if (movementType === "reduced") {
-            if (quantity > product.quantity) {
-              allowed = false;
-              showToast(`You cannot reduce ${product.name} by ${quantity} because only ${product.quantity} units are currently available.`, "error");
-              return;
-            }
+          } else if (movementType === 'reduced') {
+            after = before - quantity;
             delta = -quantity;
-          } else if (movementType === "adjustment") {
+          } else {
             const direction = ui.movementAdjustmentDirection.value;
-            if (direction === "increase") {
+            if (direction === 'increase') {
+              after = before + quantity;
               delta = quantity;
             } else {
-              if (quantity > product.quantity) {
-                allowed = false;
-                showToast(`You cannot decrease ${product.name} by ${quantity} because only ${product.quantity} units are available.`, "error");
-                return;
-              }
+              after = before - quantity;
               delta = -quantity;
             }
           }
 
-          if (!allowed) {
-            return;
-          }
-
-          const before = product.quantity;
-          const after = before + delta;
-          if (after < 0) {
-            showToast("Stock cannot go negative.", "error");
-            return;
-          }
-
-          product.quantity = after;
+          product.quantity = Math.max(0, after);
           product.updatedAt = new Date().toISOString();
 
-          const movementRecord = normalizeHistoryItem({
-            id: createId("mov"),
+          state.history.push(normalizeHistoryItem({
+            id: createId('move'),
             productId: product.id,
             productName: product.name,
             sku: product.sku,
             type: movementType,
             quantityDelta: delta,
             quantityBefore: before,
-            quantityAfter: after,
-            note: note || "",
-            timestamp: new Date().toISOString()
-          });
-
-          state.history.push(movementRecord);
-          saveState();
-          renderAll();
-          ui.movementForm.reset();
-          ui.movementAdjustmentWrap.style.display = "none";
-          ui.movementAdjustmentDirection.value = "increase";
-          ui.movementPreview.textContent = "Select a product to preview stock impact.";
-          showToast("Movement recorded.", "success");
-        }
-
-        function updateMovementVisibility() {
-          const type = ui.movementType.value;
-          if (type === "adjustment") {
-            ui.movementAdjustmentWrap.style.display = "grid";
-          } else {
-            ui.movementAdjustmentWrap.style.display = "none";
-          }
-          renderMovementPreview();
-        }
-
-        function createEmptyDataIfNeeded() {
-          if (!loadState()) {
-            loadDemoData();
-            ui.lastSavedText.textContent = "Sample data ready";
-          } else {
-            ui.lastSavedText.textContent = "Saved locally";
-          }
-
-          renderAll();
-        }
-
-        function renderAll() {
-          ui.storeTitleBrand.textContent = state.settings.storeName || "StockSense";
-          renderOverview();
-          getCategories();
-          renderProducts();
-          renderMovementProductList();
-          renderMovementHistory();
-          renderReports();
-          renderSettings();
-          renderMovementPreview();
-        }
-
-        function exportCsv() {
-          if (!state.products.length) {
-            showToast("There are no products to export.", "error");
-            return;
-          }
-
-          const rows = [
-            [
-              "id",
-              "name",
-              "sku",
-              "category",
-              "quantity",
-              "costPrice",
-              "sellingPrice",
-              "lowStockThreshold",
-              "updatedAt"
-            ],
-            ...state.products.map((product) => [
-              product.id,
-              product.name,
-              product.sku,
-              product.category,
-              product.quantity,
-              product.costPrice,
-              product.sellingPrice,
-              product.lowStockThreshold,
-              product.updatedAt
-            ])
-          ];
-
-          const csv = rows
-            .map((row) =>
-              row
-                .map((cell) => {
-                  const value = String(cell ?? "");
-                  return `"${value.replace(/"/g, '""')}"`;
-                })
-                .join(",")
-            )
-            .join("\n");
-
-          downloadFile(csv, "stocksense-export.csv", "text/csv;charset=utf-8;");
-          showToast("CSV exported.", "success");
-        }
-
-        function exportJsonBackup() {
-          const data = {
-            settings: state.settings,
-            products: state.products,
-            history: state.history
-          };
-
-          const jsonString = JSON.stringify(data, null, 2);
-          downloadFile(jsonString, "stocksense-backup.json", "application/json;charset=utf-8;");
-          showToast("JSON backup exported.", "success");
-        }
-
-        function downloadFile(content, fileName, mimeType) {
-          const blob = new Blob([content], { type: mimeType });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = fileName;
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
-        }
-
-        function importJsonDataFromFile(file) {
-          if (!file) return;
-
-          const reader = new FileReader();
-          reader.onload = () => {
-            try {
-              const parsed = JSON.parse(String(reader.result || "{}"));
-              if (!parsed || !Array.isArray(parsed.products) || !Array.isArray(parsed.history)) {
-                throw new Error("JSON data is missing products or history arrays.");
-              }
-
-              if (!window.confirm("Importing this file will replace the current inventory and its history. Continue?")) {
-                ui.jsonImportInput.value = "";
-                return;
-              }
-
-              const normalized = normalizeState(parsed);
-              state.settings = {
-                ...defaultSettings,
-                ...(normalized.settings || {})
-              };
-              state.products = normalized.products;
-              state.history = normalized.history;
-              saveState();
-              renderAll();
-              showToast("Inventory imported successfully.", "success");
-            } catch (error) {
-              showToast("Import failed. Please choose a valid StockSense backup JSON file.", "error");
-              console.warn("Import error:", error);
-            } finally {
-              ui.jsonImportInput.value = "";
-            }
-          };
-          reader.readAsText(file);
-        }
-
-        function handleSettingsSubmit(event) {
-          event.preventDefault();
-          const storeName = ui.storeNameInput.value.trim() || "StockSense";
-          const currency = ui.currencySelect.value || "NGN";
-          const maxThreshold = Number(ui.defaultLowStockThresholdInput.value);
-          state.settings = {
-            ...state.settings,
-            storeName,
-            currency,
-            defaultLowStockThreshold: Number.isFinite(maxThreshold) && maxThreshold >= 0 ? Math.round(maxThreshold) : 10
-          };
-
-          state.products = state.products.map((product) => ({
-            ...product,
-            lowStockThreshold:
-              Number(product.lowStockThreshold) > 0
-                ? Number(product.lowStockThreshold)
-                : Number(state.settings.defaultLowStockThreshold) || 0
+            quantityAfter: product.quantity,
+            note,
+            createdAt: new Date().toISOString(),
           }));
 
-          saveState();
+          writeState();
+          ui.movementForm.reset();
           renderAll();
-          showToast("Settings saved.", "success");
+          showToast('Movement recorded.', 'success');
+        } catch (error) {
+          showToast(error.message, 'error');
         }
+      }
 
-        function bindEvents() {
-          ui.navButtons.forEach((button) => {
-            button.addEventListener("click", () => setView(button.dataset.view));
+      function saveSettings(event) {
+        event.preventDefault();
+        const nextName = ui.storeNameInput.value.trim() || 'StockSense';
+        const nextCurrency = ui.currencySelect.value || 'NGN';
+        const nextThreshold = safeNumber(ui.defaultLowStockThresholdInput.value);
+
+        state.settings.storeName = nextName;
+        state.settings.currency = nextCurrency;
+        state.settings.defaultLowStockThreshold = Math.max(0, nextThreshold);
+
+        state.products = state.products.map((product) => ({
+          ...product,
+          lowStockThreshold: Math.max(0, safeNumber(product.lowStockThreshold || state.settings.defaultLowStockThreshold)),
+          updatedAt: new Date().toISOString(),
+        }));
+
+        writeState();
+        renderAll();
+        showToast('Settings saved.', 'success');
+      }
+
+      function resetInventory() {
+        const confirmed = window.confirm('Clear all inventory data from this browser? This is a prototype-only local reset.');
+        if (!confirmed) return;
+
+        state.products = [];
+        state.history = [];
+        writeState();
+        renderAll();
+        showToast('Inventory cleared.', 'success');
+      }
+
+      function bindEvents() {
+        document.querySelectorAll('.nav-btn').forEach((button) => {
+          button.addEventListener('click', () => {
+            const viewName = button.dataset.view;
+            document.querySelectorAll('.nav-btn').forEach((navButton) => {
+              navButton.classList.toggle('active', navButton === button);
+            });
+            document.querySelectorAll('.view').forEach((view) => {
+              view.classList.toggle('active', view.id === `${viewName}View`);
+            });
+            activeView = viewName;
           });
+        });
 
-          ui.productForm.addEventListener("submit", handleProductSubmit);
-          ui.cancelProductEditBtn.addEventListener("click", resetProductForm);
+        ui.productForm.addEventListener('submit', saveProduct);
+        ui.cancelProductEditBtn.addEventListener('click', resetProductForm);
+        ui.productSearch.addEventListener('input', renderProducts);
+        ui.categoryFilter.addEventListener('change', renderProducts);
+        ui.statusFilter.addEventListener('change', renderProducts);
+        ui.productList.addEventListener('click', (event) => {
+          const button = event.target.closest('button');
+          if (!button) return;
+          const action = button.dataset.action;
+          const productId = button.dataset.id;
+          if (!productId) return;
 
-          ui.productSearch.addEventListener("input", renderProducts);
-          ui.categoryFilter.addEventListener("change", renderProducts);
-          ui.statusFilter.addEventListener("change", renderProducts);
+          if (action === 'increase') adjustProductQuantity(productId, 1);
+          if (action === 'decrease') adjustProductQuantity(productId, -1);
+          if (action === 'edit') setProductForEdit(productId);
+          if (action === 'delete') confirmDelete(productId);
+        });
 
-          ui.productList.addEventListener("click", (event) => {
-            const button = event.target.closest("[data-action]");
-            if (!button) return;
-            const action = button.dataset.action;
-            const productId = button.dataset.id;
-            if (action === "edit-product") {
-              populateProductForm(productId);
-            }
-            if (action === "delete-product") {
-              handleDeleteProduct(productId);
-            }
-          });
+        ui.movementType.addEventListener('change', () => {
+          const isAdjustment = ui.movementType.value === 'adjustment';
+          ui.movementAdjustmentWrap.style.display = isAdjustment ? 'block' : 'none';
+          updateMovementPreview();
+        });
+        ui.movementProduct.addEventListener('change', updateMovementPreview);
+        ui.movementQuantity.addEventListener('input', updateMovementPreview);
+        ui.movementAdjustmentDirection.addEventListener('change', updateMovementPreview);
+        ui.movementForm.addEventListener('submit', applyMovement);
+        ui.settingsForm.addEventListener('submit', saveSettings);
+        ui.resetInventoryBtn.addEventListener('click', resetInventory);
+      }
 
-          ui.movementType.addEventListener("change", updateMovementVisibility);
-          ui.movementProduct.addEventListener("change", renderMovementPreview);
-          ui.movementQuantity.addEventListener("input", renderMovementPreview);
-          ui.movementAdjustmentDirection.addEventListener("change", renderMovementPreview);
-          ui.movementForm.addEventListener("submit", handleMovementSubmit);
+      function init() {
+        const saved = readState();
+        state.settings = saved.settings || { ...defaultSettings };
+        state.products = saved.products || [];
+        state.history = saved.history || [];
 
-          ui.settingsForm.addEventListener("submit", handleSettingsSubmit);
-          ui.exportCsvBtn.addEventListener("click", exportCsv);
-          ui.exportJsonBtn.addEventListener("click", exportJsonBackup);
-          ui.importJsonBtn.addEventListener("click", () => ui.jsonImportInput.click());
-          ui.jsonImportInput.addEventListener("change", (event) => {
-            const file = event.target.files && event.target.files[0];
-            importJsonDataFromFile(file);
-          });
+        bindEvents();
+        renderAll();
+      }
 
-          ui.loadDemoDataBtn.addEventListener("click", () => {
-            if (!window.confirm("This will overwrite your current inventory with the built-in demo data. Continue?")) {
-              return;
-            }
-            loadDemoData();
-          });
-
-          ui.loadEmptyDataBtn.addEventListener("click", loadEmptyInventory);
-          ui.resetDemoDataBtn.addEventListener("click", resetDemoData);
-        }
-
-        function init() {
-          bindEvents();
-          createEmptyDataIfNeeded();
-          setView("overview");
-        }
-
-        init();
-      })();
+      init();
     </script>
   </body>
 </html>
